@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحليل درجات الطلاب</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #0056b3;
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+            align-items: flex-start;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        textarea, select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        textarea {
+            resize: vertical;
+            height: 200px;
+        }
+        button, .file-upload-label {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            height: fit-content;
+            text-align: center;
+        }
+        button:hover, .file-upload-label:hover {
+            background-color: #0056b3;
+        }
+        .file-upload-label {
+             background-color: #28a745;
+        }
+        .file-upload-label:hover {
+             background-color: #218838;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .results {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .chart-container {
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        .categories {
+            padding: 10px;
+        }
+        .category {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .category h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid;
+        }
+        .category-ممتاز { border-color: #28a745; }
+        .category-جيدجدا { border-color: #17a2b8; }
+        .category-جيد { border-color: #ffc107; }
+        .category-مقبول { border-color: #fd7e14; }
+        .category-ضعيف { border-color: #dc3545; }
+
+        .category ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .category li {
+            background-color: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-weight: 500;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+         @media (max-width: 768px) {
+            .results, .controls {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>تحليل درجات الطلاب</h1>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="names">أسماء الطلاب (كل اسم في سطر):</label>
+            <textarea id="names" placeholder="مثال:
+علي
+سارة
+محمد
+..."></textarea>
+        </div>
+        <div class="control-group">
+            <label for="scores">درجات الطلاب (كل درجة في سطر):</label>
+            <textarea id="scores" placeholder="مثال:
+18
+15
+12.5
+..."></textarea>
+        </div>
+        <div class="full-width">
+            <div class="control-group" style="flex: 1;">
+                <label for="max-score">الدرجة الإجمالية للاختبار:</label>
+                <select id="max-score">
+                    <option value="100">100</option>
+                    <option value="40">40</option>
+                    <option value="20" selected>20</option>
+                    <option value="15">15</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: flex-end;">
+                 <label for="excel-upload" class="file-upload-label">رفع ملف إكسل</label>
+                 <input type="file" id="excel-upload" accept=".xlsx, .xls" onchange="handleFileUpload(event)">
+                 <button onclick="analyzeScores()">تحليل الدرجات</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="results">
+        <div class="chart-container">
+            <canvas id="gradesChart"></canvas>
+        </div>
+        <div class="categories" id="categories-output">
+            <!-- نتائج التصنيف ستظهر هنا -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let gradesChart;
+
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+
+            if (json.length < 1) {
+                alert('الملف فارغ أو غير صحيح.');
+                return;
+            }
+
+            const names = [];
+            const scores = [];
+
+            json.forEach((row, index) => {
+                if(index === 0 && (typeof row[0] === 'string' && typeof row[1] === 'string')) {
+                    // Skip header row if it looks like a header
+                    return; 
+                }
+                if (row[0]) { // Name in the first column
+                    names.push(row[0]);
+                }
+                if (row[1] !== undefined) { // Score in the second column
+                    scores.push(row[1]);
+                }
+            });
+
+            document.getElementById('names').value = names.join('\n');
+            document.getElementById('scores').value = scores.join('\n');
+            
+            // Automatically analyze after upload
+            analyzeScores();
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function analyzeScores() {
+        const namesText = document.getElementById('names').value;
+        const scoresText = document.getElementById('scores').value;
+        const maxScore = parseFloat(document.getElementById('max-score').value);
+
+        const names = namesText.split('\n').map(s => s.trim()).filter(s => s !== '');
+        const scores = scoresText.split('\n').map(s => s.trim()).filter(s => s !== '').map(parseFloat);
+
+        if (names.length !== scores.length) {
+            alert('يجب أن يكون عدد الأسماء مساوياً لعدد الدرجات.');
+            return;
+        }
+
+        const students = names.map((name, index) => ({ name, score: scores[index] })).filter(s => !isNaN(s.score));
+
+        if (students.length === 0) {
+            alert('الرجاء إدخال بيانات صحيحة.');
+            return;
+        }
+
+        const categories = {
+            'ممتاز': { range: [90, 101], students: [], color: 'rgba(40, 167, 69, 0.7)' },
+            'جيد جدا': { range: [80, 90], students: [], color: 'rgba(23, 162, 184, 0.7)' },
+            'جيد': { range: [70, 80], students: [], color: 'rgba(255, 193, 7, 0.7)' },
+            'مقبول': { range: [60, 70], students: [], color: 'rgba(253, 126, 20, 0.7)' },
+            'ضعيف': { range: [0, 60], students: [], color: 'rgba(220, 53, 69, 0.7)' }
+        };
+
+        students.forEach(student => {
+            if (student.score > maxScore) {
+                console.warn(`Score for ${student.name} (${student.score}) is higher than max score (${maxScore}).`);
+            }
+            const percentage = (student.score / maxScore) * 100;
+            if (percentage >= categories['ممتاز'].range[0]) {
+                categories['ممتاز'].students.push(student);
+            } else if (percentage >= categories['جيد جدا'].range[0]) {
+                categories['جيد جدا'].students.push(student);
+            } else if (percentage >= categories['جيد'].range[0]) {
+                categories['جيد'].students.push(student);
+            } else if (percentage >= categories['مقبول'].range[0]) {
+                categories['مقبول'].students.push(student);
+            } else {
+                categories['ضعيف'].students.push(student);
+            }
+        });
+
+        displayCategories(categories);
+        renderChart(categories);
+    }
+
+    function displayCategories(categories) {
+        const outputDiv = document.getElementById('categories-output');
+        outputDiv.innerHTML = '';
+
+        for (const name in categories) {
+            const category = categories[name];
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = `category category-${name.replace(' ', '')}`;
+            
+            let studentsList = '<ul>';
+            if (category.students.length > 0) {
+                studentsList += category.students.map(s => `<li><span>${s.name}</span> <span>${s.score}</span></li>`).join('');
+            } else {
+                studentsList += '<li>لا يوجد طلاب</li>';
+            }
+            studentsList += '</ul>';
+
+            categoryDiv.innerHTML = `<h3>${name} (العدد: ${category.students.length})</h3>${studentsList}`;
+            outputDiv.appendChild(categoryDiv);
+        }
+    }
+
+    function renderChart(categories) {
+        const ctx = document.getElementById('gradesChart').getContext('2d');
+        const labels = Object.keys(categories);
+        const data = labels.map(label => categories[label].students.length);
+        const backgroundColors = labels.map(label => categories[label].color);
+
+        if (gradesChart) {
+            gradesChart.destroy();
+        }
+
+        gradesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'عدد الطلاب في كل فئة',
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors.map(c => c.replace('0.7', '1')),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                             callback: function(value) {if (Math.floor(value) === value) {return value;}}
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'توزيع الطلاب حسب الفئات',
+                        font: {
+                            size: 18
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // تحليل مبدئي عند تحميل الصفحة كمثال
+    window.onload = () => {
+        document.getElementById('names').value = 'علي\nسارة\nمحمد\nنورة\nعبدالله\nمريم\nحسن\nزينب\nخالد';
+        document.getElementById('scores').value = '20\n18.5\n17\n16\n14\n13\n11\n8\n5';
+        analyzeScores();
+    };
+
+</script>
+
+</body>
+</html>
